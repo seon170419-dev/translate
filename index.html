@@ -63,14 +63,19 @@
   .sidebar-header h2 { font-size: 16px; margin: 0; }
   .student-list { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto; }
   .student-item {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;
     padding: 10px 12px; border-radius: 8px; margin-bottom: 4px; cursor: pointer;
   }
   .student-item:hover, .student-item.active { background: #eef3fe; }
-  .student-name { font-size: 14px; font-weight: 500; flex: 1; }
+  .student-name { font-size: 14px; font-weight: 500; flex: 1 1 100%; }
+  .invite-buttons { display: flex; gap: 6px; }
   .btn-invite {
     background: none; border: 1px solid var(--color-border); border-radius: 6px;
-    padding: 4px 8px; font-size: 12px; color: var(--color-text-muted);
+    padding: 4px 8px; font-size: 11.5px; color: var(--color-text-muted); white-space: nowrap;
+  }
+  .btn-delete {
+    background: none; border: 1px solid var(--color-border); border-radius: 6px;
+    padding: 4px 8px; font-size: 11.5px; color: var(--color-error); white-space: nowrap;
   }
   .empty-hint { color: var(--color-text-muted); font-size: 13px; padding: 10px 0; }
 
@@ -81,7 +86,13 @@
   .chat-header {
     padding: 14px 20px; background: var(--color-panel); border-bottom: 1px solid var(--color-border);
   }
-  .chat-header h3 { margin: 0; font-size: 15px; }
+  .chat-header h3 { margin: 0 0 8px 0; font-size: 15px; }
+  .channel-tabs { display: flex; gap: 6px; }
+  .channel-tab {
+    background: none; border: 1px solid var(--color-border); border-radius: 16px;
+    padding: 6px 14px; font-size: 13px; color: var(--color-text-muted);
+  }
+  .channel-tab.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
 
   /* ---------- messages ---------- */
   .message-list { flex: 1; overflow-y: auto; padding: 16px 20px; }
@@ -107,6 +118,10 @@
   .msg-translated.pending { font-style: italic; opacity: 0.6; }
   .msg-translated.error { color: #ffd7d7; }
   .message-row.other .msg-translated.error { color: var(--color-error); }
+  .msg-english {
+    font-size: 11px; margin-top: 3px; opacity: 0.65; font-style: italic;
+    white-space: pre-wrap; word-break: break-word;
+  }
   .msg-time { font-size: 10.5px; opacity: 0.6; margin-top: 4px; text-align: right; }
 
   /* ---------- template bar ---------- */
@@ -191,7 +206,7 @@
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInAnonymously, signOut
   } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, collection, query, orderBy, onSnapshot, serverTimestamp
+    getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, orderBy, onSnapshot, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
   // ============================================================
@@ -220,27 +235,32 @@
     {
       label: "출결 안내",
       ko: "오늘 자녀분이 결석하셨네요. 사유를 알려주시면 감사하겠습니다.",
-      th: "วันนี้บุตรหลานของท่านขาดเรียนค่ะ รบกวนแจ้งเหตุผลด้วยนะคะ ขอบคุณค่ะ"
+      th: "วันนี้บุตรหลานของท่านขาดเรียนค่ะ รบกวนแจ้งเหตุผลด้วยนะคะ ขอบคุณค่ะ",
+      en: "Your child was absent today. We would appreciate it if you could let us know the reason."
     },
     {
       label: "준비물 안내",
       ko: "내일 준비물로 색연필과 스케치북을 가져와 주세요.",
-      th: "พรุ่งนี้กรุณาเตรียมดินสอสีและสมุดวาดภาพมาด้วยนะคะ"
+      th: "พรุ่งนี้กรุณาเตรียมดินสอสีและสมุดวาดภาพมาด้วยนะคะ",
+      en: "Please bring colored pencils and a sketchbook tomorrow."
     },
     {
       label: "가정통신문 안내",
       ko: "오늘 가정통신문을 배부했습니다. 확인 부탁드립니다.",
-      th: "วันนี้ได้แจกจดหมายถึงผู้ปกครองแล้วค่ะ กรุณาตรวจสอบด้วยนะคะ"
+      th: "วันนี้ได้แจกจดหมายถึงผู้ปกครองแล้วค่ะ กรุณาตรวจสอบด้วยนะคะ",
+      en: "A notice for parents was sent home today. Please check it."
     },
     {
       label: "하교 시간 변경",
       ko: "오늘 하교 시간이 평소보다 30분 늦어질 예정입니다.",
-      th: "วันนี้เวลาเลิกเรียนจะช้ากว่าปกติประมาณ 30 นาทีค่ะ"
+      th: "วันนี้เวลาเลิกเรียนจะช้ากว่าปกติประมาณ 30 นาทีค่ะ",
+      en: "School will end about 30 minutes later than usual today."
     },
     {
       label: "감사 인사",
       ko: "협조해 주셔서 감사합니다.",
-      th: "ขอบคุณสำหรับความร่วมมือค่ะ"
+      th: "ขอบคุณสำหรับความร่วมมือค่ะ",
+      en: "Thank you for your cooperation."
     }
   ];
 
@@ -253,17 +273,19 @@
   const appEl = document.getElementById('app');
 
   let currentMessagesUnsub = null; // 채팅방을 옮길 때 이전 실시간 리스너를 해제하기 위한 핸들
+  let currentOpenStudentId = null; // 현재 교사 화면에 열려있는 학생 (삭제 시 패널을 비우기 위해 추적)
 
   // ============================================================
-  // 4. 라우팅 - URL에 ?t=교사UID&s=학생ID 가 있으면 학부모 모드,
-  //    없으면 교사 로그인/대시보드 모드
+  // 4. 라우팅 - URL에 ?t=교사UID&s=학생ID 가 있으면 초대 링크 모드
+  //    (c=parent 학부모 / c=student 학생, 기본값 parent), 없으면 교사 로그인/대시보드 모드
   // ============================================================
   const params = new URLSearchParams(location.search);
   const inviteTeacherId = params.get('t');
   const inviteStudentId = params.get('s');
+  const inviteChannel = params.get('c') === 'student' ? 'student' : 'parent';
 
   if (inviteTeacherId && inviteStudentId) {
-    initParentMode(inviteTeacherId, inviteStudentId);
+    initInviteChatMode(inviteTeacherId, inviteStudentId, inviteChannel);
   } else {
     onAuthStateChanged(auth, (user) => {
       if (user && !user.isAnonymous) {
@@ -361,14 +383,24 @@
         li.dataset.id = docSnap.id;
         li.innerHTML = `
           <span class="student-name">${escapeHtml(student.name)}</span>
-          <button class="btn-invite">초대 링크</button>
+          <button class="btn-delete" title="학생 삭제">삭제</button>
+          <span class="invite-buttons">
+            <button class="btn-invite" data-channel="parent">학부모 링크</button>
+            <button class="btn-invite" data-channel="student">학생 링크</button>
+          </span>
         `;
         li.querySelector('.student-name').addEventListener('click', () => {
           openChat(teacherId, docSnap.id, student.name);
         });
-        li.querySelector('.btn-invite').addEventListener('click', (e) => {
+        li.querySelector('.btn-delete').addEventListener('click', (e) => {
           e.stopPropagation();
-          showInviteModal(teacherId, docSnap.id, student.name);
+          deleteStudent(teacherId, docSnap.id, student.name);
+        });
+        li.querySelectorAll('.btn-invite').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showInviteModal(teacherId, docSnap.id, student.name, btn.dataset.channel);
+          });
         });
         listEl.appendChild(li);
       });
@@ -386,20 +418,39 @@
     });
   }
 
-  function showInviteModal(teacherId, studentId, studentName) {
-    const url = `${location.origin}${location.pathname}?t=${teacherId}&s=${studentId}`;
+  // 학생 문서만 삭제합니다. 주의: Firestore 클라이언트 SDK는 하위 컬렉션
+  // (parentMessages/studentMessages)을 재귀적으로 삭제하지 않으므로, 대화 기록은
+  // 이 학생 문서가 사라진 뒤에도 백엔드에 남아있게 됩니다(더 이상 UI에서는 접근 불가).
+  async function deleteStudent(teacherId, studentId, studentName) {
+    const ok = confirm(`'${studentName}' 학생을 삭제하시겠습니까?\n기존에 발급된 초대 링크는 더 이상 사용할 수 없게 됩니다.`);
+    if (!ok) return;
+    if (currentOpenStudentId === studentId) {
+      if (currentMessagesUnsub) { currentMessagesUnsub(); currentMessagesUnsub = null; }
+      const chatPanel = document.getElementById('chatPanel');
+      if (chatPanel) {
+        chatPanel.classList.add('empty-panel');
+        chatPanel.innerHTML = '<p>왼쪽에서 학생을 선택해주세요.</p>';
+      }
+      currentOpenStudentId = null;
+    }
+    await deleteDoc(doc(db, 'teachers', teacherId, 'students', studentId));
+  }
+
+  function showInviteModal(teacherId, studentId, studentName, channel) {
+    const url = `${location.origin}${location.pathname}?t=${teacherId}&s=${studentId}&c=${channel}`;
+    const roleLabel = channel === 'student' ? '학생' : '학부모';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal">
-        <h3>${escapeHtml(studentName)} 학부모 초대 링크</h3>
+        <h3>${escapeHtml(studentName)} ${roleLabel} 초대 링크</h3>
         <input type="text" id="inviteUrlInput" readonly value="${escapeHtml(url)}" />
         <div class="modal-actions">
           <button id="copyInviteBtn" class="btn-primary">링크 복사</button>
           <button id="closeInviteBtn" class="btn-text">닫기</button>
         </div>
         <div id="qrcodeBox" class="qrcode-box"></div>
-        <p class="hint-text">QR코드를 보여주시거나 링크를 카카오톡 등으로 전달해주세요. 이 링크를 아는 사람은 누구나 이 학생의 대화방에 접속할 수 있으니 신뢰할 수 있는 학부모에게만 전달해주세요.</p>
+        <p class="hint-text">QR코드를 보여주시거나 링크를 카카오톡 등으로 전달해주세요. 이 링크를 아는 사람은 누구나 이 학생의 ${roleLabel} 대화방에 접속할 수 있으니 신뢰할 수 있는 ${roleLabel}에게만 전달해주세요.</p>
       </div>
     `;
     document.body.appendChild(overlay);
@@ -454,32 +505,75 @@
     `;
   }
 
+  // 학부모/학생 채널에 따라 사용할 하위 컬렉션 이름과 Worker 번역 방향을 결정합니다.
+  function messagesSubcollectionName(channel) {
+    return channel === 'student' ? 'studentMessages' : 'parentMessages';
+  }
+  function computeDirection(channel, sender) {
+    if (sender === 'teacher') return channel === 'student' ? 'teacherToStudent' : 'teacherToParent';
+    return channel === 'student' ? 'studentToTeacher' : 'parentToTeacher';
+  }
+  function isThaiViewer(viewerRole) {
+    return viewerRole === 'parent' || viewerRole === 'student';
+  }
+
   function openChat(teacherId, studentId, studentName) {
     if (currentMessagesUnsub) { currentMessagesUnsub(); currentMessagesUnsub = null; }
+    currentOpenStudentId = studentId;
+    let activeChannel = 'parent';
 
     const chatPanel = document.getElementById('chatPanel');
     chatPanel.classList.remove('empty-panel');
-    chatPanel.innerHTML = renderChatShell(`${studentName} 학부모님과의 대화`, true);
+    chatPanel.innerHTML = `
+      <div class="chat-header">
+        <h3>${escapeHtml(studentName)}</h3>
+        <div class="channel-tabs">
+          <button type="button" class="channel-tab" data-channel="parent">학부모와의 대화</button>
+          <button type="button" class="channel-tab" data-channel="student">학생과의 대화</button>
+        </div>
+      </div>
+      <div id="messageList" class="message-list"></div>
+      ${renderTemplateBar()}
+      <form id="messageForm" class="message-form">
+        <input type="text" id="messageInput" placeholder="메시지를 입력하세요..." autocomplete="off" />
+        <button type="submit">전송</button>
+      </form>
+    `;
 
-    wireChatInput(teacherId, studentId, 'teacher');
-    wireTemplates(teacherId, studentId);
-    currentMessagesUnsub = listenToMessages(teacherId, studentId, 'teacher');
+    wireChatInput(teacherId, studentId, () => activeChannel, 'teacher');
+    wireTemplates(teacherId, studentId, () => activeChannel);
+
+    function switchChannel(channel) {
+      activeChannel = channel;
+      if (currentMessagesUnsub) { currentMessagesUnsub(); currentMessagesUnsub = null; }
+      document.getElementById('messageList').innerHTML = '';
+      currentMessagesUnsub = listenToMessages(teacherId, studentId, channel, 'teacher');
+      document.querySelectorAll('.channel-tab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.channel === channel);
+      });
+    }
+
+    document.querySelectorAll('.channel-tab').forEach((btn) => {
+      btn.addEventListener('click', () => switchChannel(btn.dataset.channel));
+    });
+
+    switchChannel('parent');
 
     document.querySelectorAll('.student-item').forEach((li) => {
       li.classList.toggle('active', li.dataset.id === studentId);
     });
   }
 
-  function wireTemplates(teacherId, studentId) {
+  function wireTemplates(teacherId, studentId, getChannel) {
     document.querySelectorAll('.template-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const tmpl = QUICK_TEMPLATES[Number(btn.dataset.index)];
-        sendTemplateMessage(teacherId, studentId, tmpl);
+        sendTemplateMessage(teacherId, studentId, getChannel(), tmpl);
       });
     });
   }
 
-  function wireChatInput(teacherId, studentId, role) {
+  function wireChatInput(teacherId, studentId, getChannel, sender) {
     const form = document.getElementById('messageForm');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -489,7 +583,7 @@
       input.value = '';
       input.disabled = true;
       try {
-        await sendMessage(teacherId, studentId, role, text);
+        await sendMessage(teacherId, studentId, getChannel(), sender, text);
       } catch (err) {
         console.error(err);
       } finally {
@@ -502,9 +596,9 @@
   // ============================================================
   // 8. 메시지 전송 / 번역 요청
   // ============================================================
-  async function sendMessage(teacherId, studentId, sender, text) {
+  async function sendMessage(teacherId, studentId, channel, sender, text) {
     const originalLang = sender === 'teacher' ? 'ko' : 'th';
-    const messagesCol = collection(db, 'teachers', teacherId, 'students', studentId, 'messages');
+    const messagesCol = collection(db, 'teachers', teacherId, 'students', studentId, messagesSubcollectionName(channel));
 
     // 1) 원문을 먼저 저장 -> 화면에 즉시 표시됨 (번역 대기 상태)
     const msgRef = await addDoc(messagesCol, {
@@ -512,6 +606,7 @@
       originalText: text,
       originalLang,
       translatedText: null,
+      englishGloss: null,
       status: 'pending',
       createdAt: serverTimestamp()
     });
@@ -521,31 +616,36 @@
       const resp = await fetch(WORKER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, direction: sender })
+        body: JSON.stringify({ text, direction: computeDirection(channel, sender) })
       });
       if (!resp.ok) throw new Error(`Worker responded with ${resp.status}`);
       const data = await resp.json();
       if (!data.translatedText) throw new Error('empty translatedText from worker');
 
-      // 3) 번역 결과를 같은 메시지 문서에 채워넣음
-      await updateDoc(msgRef, { translatedText: data.translatedText, status: 'translated' });
+      // 3) 번역 결과(+영어 대조본)를 같은 메시지 문서에 채워넣음
+      await updateDoc(msgRef, {
+        translatedText: data.translatedText,
+        englishGloss: data.englishGloss || '',
+        status: 'translated'
+      });
     } catch (err) {
       console.error('번역 실패:', err);
       const fallback = sender === 'teacher'
         ? '(แปลไม่สำเร็จ กรุณาสอบถามครูโดยตรง)'
         : '(번역에 실패했습니다. 원문을 확인해 주세요.)';
-      await updateDoc(msgRef, { translatedText: fallback, status: 'error' });
+      await updateDoc(msgRef, { translatedText: fallback, englishGloss: '', status: 'error' });
     }
   }
 
   // 미리 완역된 템플릿 메시지는 Worker 호출 없이 바로 완료 상태로 전송합니다.
-  async function sendTemplateMessage(teacherId, studentId, template) {
-    const messagesCol = collection(db, 'teachers', teacherId, 'students', studentId, 'messages');
+  async function sendTemplateMessage(teacherId, studentId, channel, template) {
+    const messagesCol = collection(db, 'teachers', teacherId, 'students', studentId, messagesSubcollectionName(channel));
     await addDoc(messagesCol, {
       sender: 'teacher',
       originalText: template.ko,
       originalLang: 'ko',
       translatedText: template.th,
+      englishGloss: template.en || '',
       status: 'translated',
       createdAt: serverTimestamp()
     });
@@ -554,8 +654,8 @@
   // ============================================================
   // 9. 실시간 메시지 렌더링 (원문 + 번역문 병기, 시간, 날짜 구분선)
   // ============================================================
-  function listenToMessages(teacherId, studentId, viewerRole) {
-    const messagesCol = collection(db, 'teachers', teacherId, 'students', studentId, 'messages');
+  function listenToMessages(teacherId, studentId, channel, viewerRole) {
+    const messagesCol = collection(db, 'teachers', teacherId, 'students', studentId, messagesSubcollectionName(channel));
     const q = query(messagesCol, orderBy('createdAt', 'asc'));
     return onSnapshot(q, (snap) => {
       const listEl = document.getElementById('messageList');
@@ -587,8 +687,8 @@
   function renderDateDivider(date, viewerRole) {
     const el = document.createElement('div');
     el.className = 'date-divider';
-    // 교사 화면은 한국어, 학부모 화면은 태국어 형식으로 날짜를 표시 (기기 로케일과 무관하게 고정)
-    const locale = viewerRole === 'parent' ? 'th-TH' : 'ko-KR';
+    // 교사 화면은 한국어, 학부모/학생 화면은 태국어 형식으로 날짜를 표시 (기기 로케일과 무관하게 고정)
+    const locale = isThaiViewer(viewerRole) ? 'th-TH' : 'ko-KR';
     const label = date.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
     el.innerHTML = `<span>${escapeHtml(label)}</span>`;
     return el;
@@ -600,22 +700,28 @@
     el.className = `message-row ${isSelf ? 'self' : 'other'}`;
 
     // 브라우저의 로컬 타임존을 그대로 사용 -> 한국/태국 시차가 자동 반영됨
-    const timeLocale = viewerRole === 'parent' ? 'th-TH' : 'ko-KR';
+    const timeLocale = isThaiViewer(viewerRole) ? 'th-TH' : 'ko-KR';
     const timeStr = date.toLocaleTimeString(timeLocale, { hour: 'numeric', minute: '2-digit' });
 
     let translationHtml;
     if (msg.status === 'pending') {
-      const pendingLabel = viewerRole === 'parent' ? 'กำลังแปล...' : '번역 중...';
+      const pendingLabel = isThaiViewer(viewerRole) ? 'กำลังแปล...' : '번역 중...';
       translationHtml = `<div class="msg-translated pending">${pendingLabel}</div>`;
     } else {
       const errClass = msg.status === 'error' ? ' error' : '';
       translationHtml = `<div class="msg-translated${errClass}">${escapeHtml(msg.translatedText || '')}</div>`;
     }
 
+    // 영어 대조본: 태국어/한국어를 모르더라도 번역이 맞는지 확인할 수 있는 참고용 표시
+    const englishHtml = msg.englishGloss
+      ? `<div class="msg-english">EN: ${escapeHtml(msg.englishGloss)}</div>`
+      : '';
+
     el.innerHTML = `
       <div class="bubble">
         <div class="msg-original">${escapeHtml(msg.originalText)}</div>
         ${translationHtml}
+        ${englishHtml}
         <div class="msg-time">${escapeHtml(timeStr)}</div>
       </div>
     `;
@@ -623,9 +729,9 @@
   }
 
   // ============================================================
-  // 10. 학부모 모드 (로그인 없이 초대 링크로 즉시 진입)
+  // 10. 학부모/학생 초대 모드 (로그인 없이 초대 링크로 즉시 진입)
   // ============================================================
-  async function initParentMode(teacherId, studentId) {
+  async function initInviteChatMode(teacherId, studentId, channel) {
     appEl.innerHTML = `<div class="parent-loading">불러오는 중입니다... / กำลังโหลด...</div>`;
 
     try {
@@ -650,11 +756,18 @@
       if (studentSnap.exists()) studentName = studentSnap.data().name || '';
     } catch (err) { console.error(err); }
 
+    const welcomeText = channel === 'student'
+      ? `ยินดีต้อนรับน้อง ๆ สู่ห้องแชทกับครู${escapeHtml(teacherName)}`
+      : `ยินดีต้อนรับสู่ห้องแชทกับครู${escapeHtml(teacherName)}`;
+    const subText = channel === 'student'
+      ? `${escapeHtml(studentName)} 학생과의 1:1 대화방입니다.`
+      : `${escapeHtml(studentName)} 학생 학부모님과의 1:1 대화방입니다.`;
+
     appEl.innerHTML = `
       <div class="parent-shell">
         <div class="parent-welcome">
-          <p>ยินดีต้อนรับสู่ห้องแชทกับครู${escapeHtml(teacherName)} 🙏</p>
-          <p class="welcome-sub">${escapeHtml(studentName)} 학생 학부모님과의 1:1 대화방입니다.</p>
+          <p>${welcomeText}</p>
+          <p class="welcome-sub">${subText}</p>
         </div>
         <div class="chat-panel" style="flex:1; display:flex; flex-direction:column;">
           ${renderChatShell(`${teacherName} 선생님과의 대화`, false)}
@@ -662,8 +775,8 @@
       </div>
     `;
 
-    wireChatInput(teacherId, studentId, 'parent');
-    currentMessagesUnsub = listenToMessages(teacherId, studentId, 'parent');
+    wireChatInput(teacherId, studentId, () => channel, channel);
+    currentMessagesUnsub = listenToMessages(teacherId, studentId, channel, channel);
   }
 
   // ============================================================

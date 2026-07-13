@@ -9,8 +9,52 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // 공통 메시지 생성/수정 규칙. otherRole은 'parent' 또는 'student' - 교사가 아닌
+    // 상대방이 이 채널에서 어떤 sender 값을 써야 하는지를 나타낸다.
+    function canCreateMessage(teacherId, otherRole) {
+      return isSignedIn()
+        && request.resource.data.keys().hasOnly(
+             ['sender', 'originalText', 'originalLang', 'translatedText', 'englishGloss', 'status', 'createdAt'])
+        && request.resource.data.originalText is string
+        && request.resource.data.originalText.size() > 0
+        && request.resource.data.originalText.size() < 2000
+        && request.resource.data.createdAt == request.time
+        && (
+             ( isTeacherOwner(teacherId)
+               && request.resource.data.sender == 'teacher'
+               && request.resource.data.originalLang == 'ko'
+               && (
+                    (request.resource.data.status == 'pending'
+                     && request.resource.data.translatedText == null)
+                    ||
+                    (request.resource.data.status == 'translated'
+                     && request.resource.data.translatedText is string)
+                  )
+             )
+             ||
+             ( !isTeacherOwner(teacherId)
+               && request.resource.data.sender == otherRole
+               && request.resource.data.originalLang == 'th'
+               && request.resource.data.status == 'pending'
+               && request.resource.data.translatedText == null
+             )
+           );
+    }
+
+    function canUpdateMessage(teacherId, otherRole) {
+      return isSignedIn()
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['translatedText', 'englishGloss', 'status'])
+        && request.resource.data.translatedText is string
+        && request.resource.data.status in ['translated', 'error']
+        && (
+             (isTeacherOwner(teacherId) && resource.data.sender == 'teacher')
+             || (!isTeacherOwner(teacherId) && resource.data.sender == otherRole)
+           );
+    }
+
     match /teachers/{teacherId} {
-      // 학부모 환영 화면에서 교사 이름을 보여주기 위해, 로그인(익명 포함)한 누구나 단건 조회는 가능.
+      // 학부모/학생 환영 화면에서 교사 이름을 보여주기 위해, 로그인(익명 포함)한 누구나 단건 조회는 가능.
       // 이 문서에는 email 등 민감정보를 절대 넣지 않는다 (index.html 데이터 모델 참고).
       allow get: if isSignedIn();
 
@@ -29,8 +73,8 @@ service cloud.firestore {
 
       match /students/{studentId} {
         // studentId는 추측 불가능한 Firestore auto-ID이므로, 초대 링크로 이미 id를 아는
-        // 학부모는 해당 문서를 get할 수 있다. 단 list는 교사 본인만 허용 -> 학부모가
-        // 다른 학생 목록을 열거하는 것을 원천 차단하는 핵심 방어선.
+        // 학부모/학생은 해당 문서를 get할 수 있다. 단 list는 교사 본인만 허용 -> 다른 학생
+        // 목록을 열거하는 것을 원천 차단하는 핵심 방어선.
         allow get: if isTeacherOwner(teacherId) || isSignedIn();
         allow list: if isTeacherOwner(teacherId);
 
@@ -40,61 +84,22 @@ service cloud.firestore {
 
         allow delete: if isTeacherOwner(teacherId);
 
-        match /messages/{messageId} {
-          // 이 규칙에 도달하려면 teacherId와 studentId를 이미 알아야 하므로(=초대 링크 보유),
-          // 교사 본인 또는 그 링크를 가진 (익명 인증된) 학부모가 대화를 읽을 수 있다.
+        // 학부모와의 대화. 이 규칙에 도달하려면 teacherId와 studentId를 이미 알아야 하므로
+        // (=학부모 초대 링크 보유), 교사 본인 또는 그 링크를 가진 (익명 인증된) 학부모가
+        // 읽고 쓸 수 있다. 학생용 대화(studentMessages)와는 완전히 분리된 하위 컬렉션이다.
+        match /parentMessages/{messageId} {
           allow get, list: if isTeacherOwner(teacherId) || isSignedIn();
-
-          // 새 메시지 생성 규칙:
-          // - 허용된 필드만 사용, 원문 길이 2000자 이하 (오남용/비용 방어)
-          // - createdAt은 서버 시각으로 고정 (클라이언트가 시간 조작 불가)
-          // - 교사는 sender:'teacher'/originalLang:'ko'만, 학부모는 sender:'parent'/originalLang:'th'만 쓸 수 있음
-          //   (상대방인 척 메시지를 위조할 수 없음)
-          // - 교사가 자주 쓰는 표현(템플릿)은 이미 번역된 상태(status:'translated')로 바로 생성 가능
-          // - 그 외 모든 메시지는 반드시 'pending' + translatedText:null 로 시작해야 하며,
-          //   번역 결과는 아래 update 규칙을 통해서만 채워질 수 있다.
-          allow create: if isSignedIn()
-            && request.resource.data.keys().hasOnly(
-                 ['sender', 'originalText', 'originalLang', 'translatedText', 'status', 'createdAt'])
-            && request.resource.data.originalText is string
-            && request.resource.data.originalText.size() > 0
-            && request.resource.data.originalText.size() < 2000
-            && request.resource.data.createdAt == request.time
-            && (
-                 ( isTeacherOwner(teacherId)
-                   && request.resource.data.sender == 'teacher'
-                   && request.resource.data.originalLang == 'ko'
-                   && (
-                        (request.resource.data.status == 'pending'
-                         && request.resource.data.translatedText == null)
-                        ||
-                        (request.resource.data.status == 'translated'
-                         && request.resource.data.translatedText is string)
-                      )
-                 )
-                 ||
-                 ( !isTeacherOwner(teacherId)
-                   && request.resource.data.sender == 'parent'
-                   && request.resource.data.originalLang == 'th'
-                   && request.resource.data.status == 'pending'
-                   && request.resource.data.translatedText == null
-                 )
-               );
-
-          // 번역 결과 채우기: 자신이 만든 'pending' 메시지에 한해, translatedText/status
-          // 두 필드만, pending -> translated|error 로 딱 한 번 전이하는 것만 허용.
-          // (Cloud Functions/Admin SDK 없이 클라이언트가 Cloudflare Worker 응답을 반영하는 구조이므로 필요)
-          allow update: if isSignedIn()
-            && resource.data.status == 'pending'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['translatedText', 'status'])
-            && request.resource.data.translatedText is string
-            && request.resource.data.status in ['translated', 'error']
-            && (
-                 (isTeacherOwner(teacherId) && resource.data.sender == 'teacher')
-                 || (!isTeacherOwner(teacherId) && resource.data.sender == 'parent')
-               );
-
+          allow create: if canCreateMessage(teacherId, 'parent');
+          allow update: if canUpdateMessage(teacherId, 'parent');
           // 대화 기록은 그 외에는 수정/삭제 불가 (사실상 불변 기록으로 유지).
+          allow delete: if false;
+        }
+
+        // 학생 본인과의 대화. parentMessages와 동일한 규칙 구조이나 sender가 'student'여야 한다.
+        match /studentMessages/{messageId} {
+          allow get, list: if isTeacherOwner(teacherId) || isSignedIn();
+          allow create: if canCreateMessage(teacherId, 'student');
+          allow update: if canUpdateMessage(teacherId, 'student');
           allow delete: if false;
         }
       }
