@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<meta name="color-scheme" content="light" />
+<meta name="color-scheme" content="light dark" />
 <title>다국어 소통 채팅</title>
 
 <style>
   :root {
-    color-scheme: light;
+    color-scheme: light dark;
     --color-bg: #f4f6f8;
     --color-panel: #ffffff;
     --color-border: #e2e5e9;
@@ -20,6 +20,28 @@
     --color-bubble-self-text: #ffffff;
     --color-bubble-other: #ffffff;
     --color-error: #d64545;
+  }
+  /* 기기가 다크 모드일 때 자체 다크 팔레트를 제공 -> 일부 브라우저(삼성 인터넷 등)의
+     강제 다크모드 색 반전 버그로 화면이 깨지는 문제를 막기 위해 직접 다크 테마를 지원함 */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #12161d;
+      --color-panel: #1b212b;
+      --color-border: #2c3542;
+      --color-primary: #4c8dff;
+      --color-primary-dark: #6ea1ff;
+      --color-text: #e8ecf1;
+      --color-text-muted: #97a2b0;
+      --color-bubble-self: #2f6fed;
+      --color-bubble-self-text: #ffffff;
+      --color-bubble-other: #232c3a;
+      --color-error: #ff7a7a;
+    }
+    .student-item:hover, .student-item.active { background: #223047; }
+    .date-divider span { background: #2c3542; }
+    .template-btn { background: #223047; }
+    .template-btn:hover { background: #2a3c56; }
+    .modal { background: var(--color-panel); }
   }
   * { box-sizing: border-box; }
   html, body {
@@ -199,7 +221,7 @@
   window.addEventListener('error', function (e) {
     const appEl = document.getElementById('app');
     if (appEl && !appEl.innerHTML.trim()) {
-      appEl.innerHTML = '<div style="padding:24px;text-align:center;color:#444;">페이지를 불러오는 중 오류가 발생했습니다.<br>새로고침해도 안 되면 인터넷 연결이나 브라우저를 확인해주세요.<br><small>' + (e.message || '') + '</small></div>';
+      appEl.innerHTML = '<div style="padding:24px;text-align:center;color:#888;">페이지를 불러오는 중 오류가 발생했습니다.<br>새로고침해도 안 되면 인터넷 연결이나 브라우저를 확인해주세요.<br><small>' + (e.message || '') + '</small></div>';
     }
   });
 </script>
