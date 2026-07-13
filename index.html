@@ -275,6 +275,53 @@
   let currentMessagesUnsub = null; // 채팅방을 옮길 때 이전 실시간 리스너를 해제하기 위한 핸들
   let currentOpenStudentId = null; // 현재 교사 화면에 열려있는 학생 (삭제 시 패널을 비우기 위해 추적)
 
+  // ------------------------------------------------------------
+  // 알림: 브라우저 탭이 열려있지만 다른 탭/창을 보고 있을 때, 지금 열려있는
+  // 대화방에 상대방 메시지가 새로 오면 탭 제목에 안읽음 개수를 표시하고 알림음을 재생.
+  // 탭이 닫혀있거나 백그라운드일 때 오는 푸시 알림은 아님(별도 설정/권한 불필요).
+  // ------------------------------------------------------------
+  const baseTitle = document.title;
+  let isTabActive = !document.hidden;
+  let unreadCount = 0;
+
+  function clearUnread() {
+    unreadCount = 0;
+    document.title = baseTitle;
+  }
+  function notifyNewMessage() {
+    unreadCount++;
+    document.title = `(${unreadCount}) ${baseTitle}`;
+    playNotifySound();
+  }
+  function playNotifySound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.15;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+      osc.stop(ctx.currentTime + 0.3);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  document.addEventListener('visibilitychange', () => {
+    isTabActive = !document.hidden;
+    if (isTabActive) clearUnread();
+  });
+  window.addEventListener('focus', () => {
+    isTabActive = true;
+    clearUnread();
+  });
+  window.addEventListener('blur', () => {
+    isTabActive = false;
+  });
+
   // ============================================================
   // 4. 라우팅 - URL에 ?t=교사UID&s=학생ID 가 있으면 초대 링크 모드
   //    (c=parent 학부모 / c=student 학생, 기본값 parent), 없으면 교사 로그인/대시보드 모드
@@ -657,10 +704,22 @@
   function listenToMessages(teacherId, studentId, channel, viewerRole) {
     const messagesCol = collection(db, 'teachers', teacherId, 'students', studentId, messagesSubcollectionName(channel));
     const q = query(messagesCol, orderBy('createdAt', 'asc'));
+    let isFirstSnapshot = true;
     return onSnapshot(q, (snap) => {
       const listEl = document.getElementById('messageList');
       if (!listEl) return;
       const wasAtBottom = isScrolledToBottom(listEl);
+
+      // 최초 로딩(기존 대화 전체)은 알림 대상이 아니고, 이후 새로 추가된 상대방
+      // 메시지만 안읽음으로 카운트한다.
+      if (!isFirstSnapshot) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added' && change.doc.data().sender !== viewerRole && !isTabActive) {
+            notifyNewMessage();
+          }
+        });
+      }
+      isFirstSnapshot = false;
 
       listEl.innerHTML = '';
       let prevDate = null;
