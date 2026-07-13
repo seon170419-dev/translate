@@ -392,7 +392,10 @@
         <aside class="sidebar">
           <div class="sidebar-header">
             <h2>${escapeHtml(displayName)}</h2>
-            <button id="logoutBtn" class="btn-text">로그아웃</button>
+            <div>
+              <button id="editNameBtn" class="btn-text" title="이름 수정">수정</button>
+              <button id="logoutBtn" class="btn-text">로그아웃</button>
+            </div>
           </div>
           <button id="addStudentBtn" class="btn-primary full-width">+ 새 학생 등록</button>
           <ul id="studentList" class="student-list"></ul>
@@ -406,6 +409,12 @@
     document.getElementById('logoutBtn').addEventListener('click', () => {
       if (currentMessagesUnsub) { currentMessagesUnsub(); currentMessagesUnsub = null; }
       signOut(auth);
+    });
+    document.getElementById('editNameBtn').addEventListener('click', async () => {
+      const newName = (prompt('학부모/학생 화면에 표시될 이름을 입력해주세요.', displayName) || '').trim();
+      if (!newName || newName === displayName) return;
+      await updateDoc(teacherRef, { displayName: newName });
+      renderTeacherDashboard(user);
     });
     document.getElementById('addStudentBtn').addEventListener('click', () => createStudent(user.uid));
 
